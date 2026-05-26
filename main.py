@@ -616,16 +616,32 @@ if __name__ == '__main__':
         # Sheet 1: Model metrics
         summary.to_excel(writer, sheet_name='Model_Metrics', index=False)
 
-        # Sheet 2: LR odds ratio table
-        lr_table = pd.DataFrame({
-            'Variable'   : feat_labels,
-            'Odds_Ratio' : np.round(odds_ratios, 4),
-            'p_value'    : np.round(pvals, 4),
-            'CI_95_Lo'   : np.round(np.exp(conf_int[:, 0]), 4),
-            'CI_95_Hi'   : np.round(np.exp(conf_int[:, 1]), 4),
-            'Significant': ['Yes' if (not np.isnan(p) and p < 0.05) else 'No' for p in pvals],
-        }).sort_values('Odds_Ratio', ascending=False)
-        lr_table.to_excel(writer, sheet_name='LR_Odds_Ratios', index=False)
+        # Sheet 2: LR coefficient + odds ratio table
+
+        coef_table = pd.DataFrame({
+            'Variable': ['Intercept'] + feat_labels,
+            'Coefficient': np.round(
+                np.concatenate(([lr.intercept_[0]], coefs)),
+                4
+            ),
+            'Odds_Ratio': np.round(
+                np.exp(np.concatenate(([lr.intercept_[0]], coefs))),
+                4
+            ),
+            'p_value': [np.nan] + list(np.round(pvals, 4)),
+            'CI_95_Lo': [np.nan] + list(np.round(np.exp(conf_int[:, 0]), 4)),
+            'CI_95_Hi': [np.nan] + list(np.round(np.exp(conf_int[:, 1]), 4)),
+            'Significant': ['-'] + [
+                'Yes' if (not np.isnan(p) and p < 0.05) else 'No'
+                for p in pvals
+            ],
+        })
+
+        coef_table.to_excel(
+            writer,
+            sheet_name='LR_Model_Coefficients',
+            index=False
+        )
 
         # Sheet 3: DT feature importances
         dt_table = pd.DataFrame({
@@ -644,6 +660,19 @@ if __name__ == '__main__':
         })
         pred_table.to_excel(writer, sheet_name='Test_Predictions', index=False)
 
+    print("\n" + "=" * 55)
+    print("  LOGISTIC REGRESSION MODEL")
+    print("=" * 55)
+
+    terms = [f"{lr.intercept_[0]:.4f}"]
+
+    for coef, label in zip(coefs, feat_labels):
+        sign = "+" if coef >= 0 else "-"
+        terms.append(f" {sign} {abs(coef):.4f}*{label}")
+
+    equation = "log(p/(1-p)) = " + "".join(terms)
+
+    print("\n" + equation + "\n")
     # Automatic interpretation
     print_interpretation(metrics_lr, metrics_dt, odds_ratios, pvals, feat_imp_dt, feat_labels)
 
